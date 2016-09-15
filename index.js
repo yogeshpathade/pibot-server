@@ -6,105 +6,89 @@ var gpio = require('rpi-gpio');
 var async = require('async');
 var debug = require('debug')('main');
 
-var bot = {
+class MotorBot {
 
-	motors: {
-		leftA: 9,
-		leftB: 10,
-		rightA: 8,
-		rightB: 7
-	},
+    constructor(leftPinA, leftPinB, rightPinA, rightPinB){
+        this.leftPinA = leftPinA;
+        this.leftPinB = leftPinB;
+        this.rightPinA = rightPinA;
+        this.rightPinB = rightPinB;
+    }
 
-    init: function (callback) {
-    	debug('bot is initializing.');
+    init(callback) {
+        debug('bot is initializing.');
         gpio.setMode(gpio.MODE_BCM, function(err){
-        	if(err){
-        		debug('failed to set BCM Mode on : ', err);
-        		callback(err, null);
-        	}else {
-        		debug('bot mode is set to BCM');
-        	}
+            if(err){
+                debug('failed to set BCM Mode on : ', err);
+                callback(err, null);
+            }else {
+                debug('bot mode is set to BCM');
+            }
         });
         
         debug('setting up motors.');
 
         async.parallel([
             function(callback) {
-                gpio.setup(bot.motors.rightA, gpio.DIR_OUT, callback);
+                gpio.setup(rightPinA, gpio.DIR_OUT, callback);
             },
             function(callback) {
-                gpio.setup(bot.motors.rightB, gpio.DIR_OUT, callback)
+                gpio.setup(rightPinB, gpio.DIR_OUT, callback)
             },
             function(callback) {
-                gpio.setup(bot.motors.leftA, gpio.DIR_OUT, callback)
+                gpio.setup(leftPinA, gpio.DIR_OUT, callback)
             }, 
             function(callback) {
-                gpio.setup(bot.motors.leftB, gpio.DIR_OUT, callback)
+                gpio.setup(leftPinB, gpio.DIR_OUT, callback)
             },                                        
         ], function(err, results) {
-        	if(err){
-            	console.log(err);
-            	debug('error : %s', err);
-            	callback(err, null);
-        	} else {
-            	debug('motors setup complete.');
-            	//setAllOff(callback); // Not required to set all pins off 
+            if(err){
+                console.log(err);
+                debug('error : %s', err);
+                callback(err, null);
+            } else {
+                debug('motors setup complete.');
+                //setAllOff(callback); // Not required to set all pins off 
                 callback(null, true);
             }
         });
+    }
 
-        function setAllOff(callback) {
-            async.series([
-                function(callback) {
-                    bot.write(bot.motors.rightA, false, callback);
-                },
-                function(callback) {
-                    bot.write(bot.motors.rightB, false, callback);
-                },
-                function(callback) {
-                    bot.write(bot.motors.leftA, false, callback);
-                },
-                function(callback) {
-                    bot.write(bot.motors.leftB, false, callback);
-                },
-                ], function(err, results) {
-                	debug('bot initialization complete.');
-        			callback(null, results);
-            });        
-        }
-    }, //end of init
-    write : function (pin, value, callback) {
-    	gpio.write(pin, value, callback);
-	},
-    delayedWrite: function (pin, value, timeout, callback) {
-	    setTimeout(function() {
-	        debug('setting %s to ' + value, pin);
-	        gpio.write(pin, value, callback);
-	    }, timeout);
-   	},	
-   	move : function(motorA, motorB, callback){
-	    async.parallel([
-	        function(callback) {
-	            bot.write(motorA, true, callback);
-	        },
-	        function(callback) {
-	            bot.write(motorB, true, callback);
-	        },
-	        ], function(err, results) {
-	        	debug('write complete, both motors are running.');
-	            if(err) 
-	            	callback(err, null);
-                else
-                    callback(null, true);
-	    });   
-   	},
-    stop : function(motorA, motorB, callback){
+    write(pin, value, callback) {
+        gpio.write(pin, value, callback);
+    }
+
+    delayedWrite(pin, value, timeout, callback) {
+        setTimeout(function() {
+            debug('setting %s to ' + value, pin);
+            gpio.write(pin, value, callback);
+        }, timeout);
+    }
+
+    move(motorA, motorB, callback){
         async.parallel([
             function(callback) {
-                bot.delayedWrite(motorA, false, 500, callback);
+                MotorBot.prototype.write(motorA, true, callback);
             },
             function(callback) {
-                bot.delayedWrite(motorB, false, 500, callback);
+                MotorBot.prototype.write(motorB, true, callback);
+            },
+            ], function(err, results) {
+                debug('write complete, both motors are running.');
+                if(err) 
+                    callback(err, null);
+                else
+                    callback(null, true);
+        });   
+    }    
+
+    stop(motorA, motorB, callback){
+        async.parallel([
+            function(callback) {
+                MotorBot.prototype.delayedWrite(motorA, false, 500, callback);
+            },
+            function(callback) {
+                MotorBot.prototype.delayedWrite(motorB, false, 500, callback);
             },
             ], function(err, results) {
                 debug('write complete, both motors are stopped.');
@@ -113,8 +97,17 @@ var bot = {
                 else
                     callback(null, true);
         });   
-    },               
-};
+    }
+
+    destroy(cb){
+        gpio.destroy(function() {
+            debug('Closed pins, now exit');
+            cb();
+        });
+    }    
+
+}
+
 
 /*test setup code.*/
 
@@ -176,17 +169,17 @@ app.get('/bot/cmd', function (req, res) {
     }
 
     if(cmd === 'FOREWARD'){
-        motorA = bot.motors.leftA;
-        motorB = bot.motors.rightA;
+        motorA = leftPinA;
+        motorB = rightPinA;
     }else if(cmd === 'REVERSE'){
-        motorA = bot.motors.leftB;
-        motorB = bot.motors.rightB;        
+        motorA = leftPinB;
+        motorB = rightPinB;        
     }else if(cmd === 'LEFT'){
-        motorA = bot.motors.leftB;
-        motorB = bot.motors.rightA;        
+        motorA = leftPinB;
+        motorB = rightPinA;        
     }else if(cmd === 'RIGHT'){
-        motorA = bot.motors.leftA;
-        motorB = bot.motors.rightB;         
+        motorA = leftPinA;
+        motorB = rightPinB;         
     }
 
     debug('executing command.');
@@ -215,6 +208,9 @@ app.get('/bot/cmd', function (req, res) {
     );
 });
 
+var leftPinA=9, leftPinB=10, rightPinA=8, rightPinB=7;
+
+const bot = new MotorBot(9, 10, 8, 7);
 bot.init(function(err, results){
     if(err){
         debug('Error in bot init code : %s', err);             
@@ -228,18 +224,18 @@ var server = app.listen(3000, function () {
 });
 
 process.on('exit', function() {
-  console.log('About to exit.');
-        gpio.destroy(function() {
-        console.log('Closed pins, now stopping the server.');
-        server.close();
+    debug('About to exit.');
+    bot.destroy(function(){
+        debug('Stopping the Server.');
+        server.close()
     });
 });
 
 process.on('SIGINT', function () {
-  console.log('Got SIGINT.');
-    gpio.destroy(function() {
-        console.log('Closed pins, now exit');
-        server.close();
-    });
+    debug('Got SIGINT.');
+    bot.destroy(function(){
+        debug('Stopping the Server.');
+        server.close()
+    });    
 });
 
